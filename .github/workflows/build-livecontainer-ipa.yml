@@ -1,0 +1,57 @@
+name: Build LiveContainer IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "CTLTrackingApp.zip"
+      - ".github/workflows/build-livecontainer-ipa.yml"
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Extract CTL Tracking App
+        run: |
+          test -f CTLTrackingApp.zip
+          rm -rf AppSource
+          mkdir AppSource
+          ditto -x -k CTLTrackingApp.zip AppSource
+          test -d AppSource/CTLTracker.xcodeproj
+          test -d AppSource/CTLTracker
+
+      - name: Build unsigned app
+        working-directory: AppSource
+        run: |
+          xcodebuild \
+            -project CTLTracker.xcodeproj \
+            -scheme CTLTracker \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Create IPA
+        working-directory: AppSource
+        run: |
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/CTLTracker.app Payload/
+          zip -r CTLTracker.ipa Payload
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: CTL-Tracking-App-LiveContainer-IPA
+          path: AppSource/CTLTracker.ipa
